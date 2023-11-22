@@ -5,7 +5,7 @@ import math
 
 def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
     # Obtener el valor de CP o H en df_cuestionarios
-    valor_a_buscar = row['C.P.'] if 'C.P.' in row else row['H']
+    valor_a_buscar = row['C.P.']
 
     # Buscar valor_a_buscar en df_sepomex['CP.ASENTAMIENTO']
     municipiobusqueda = 'Municipio no encontrado'
@@ -310,6 +310,10 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
         # print("S/R")
         at = 'not-ans'
         abn = 'not-ans'
+    if row['ABORTO'] == '4':
+        # print("S/R")
+        at = 'none'
+        abn = 0
     else:
         # Dividir la cadena usando el carácter "|"
         partes = row['ABORTO'].split(" | ")
@@ -321,7 +325,6 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
             '4': 'none',
             '5 (EMBARAZO ECTOPICO)': 'ectopic'
         }
-
 
         abn = len(partes)
         at_values = [translation_dict.get(part, 'Ninguno') for part in partes]
@@ -354,6 +357,14 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
             valorpreventix = 'negative'
         else:
             valorpreventix = 'not-biopsied'
+
+        vptxa = fila_ginequito['preventixajuste'].values[0]
+        if vptxa == 'positivo':
+            valorpreventixa = 'positive'
+        elif vptxa == 'negativo':
+            valorpreventixa = 'negative'
+        else:
+            valorpreventixa = 'not-biopsied'
 
 
         vp16 = fila_ginequito['p16'].values[0]
@@ -793,6 +804,8 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
         else:
             iddev = row['ID_DEVELLAB']
 
+
+
     else:
         print(f"No se encontró información para ID_GINEQ: {id_gineq}")
 
@@ -803,6 +816,7 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
             'AGE': edad,
             'BMI': bmi,
             'PREVENTIX': valorpreventix,
+            'PREVENTIXADJS': valorpreventixa,
             'LBC': resultadolbcpos,
             'HPV.PCR': vph,
             'COLP': resultadocolps,
