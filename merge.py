@@ -1,12 +1,11 @@
 import pandas as pd
 from datetime import datetime, timedelta
 import re
+import math
 
 def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
     # Obtener el valor de CP o H en df_cuestionarios
     valor_a_buscar = row['C.P.'] if 'C.P.' in row else row['H']
-
-
 
     # Buscar valor_a_buscar en df_sepomex['CP.ASENTAMIENTO']
     municipiobusqueda = 'Municipio no encontrado'
@@ -15,21 +14,25 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
         #print(sepomex_row['CP.ASENTAMIENTO'])
 
         if sepomex_row['CP.ASENTAMIENTO'] == 'S/R':
-            poblacionmun = 'No encontrado'
-            rangopobreza = 'No encontrado'
+            poblacionmun = 'not-found'
+            rangopobreza = 'not-found'
         else:
             cpas = int(sepomex_row['CP.ASENTAMIENTO'])
             strcpas = str(cpas)
             municipiobusqueda = sepomex_row['MUNICIPIO']
-            asentamiento = sepomex_row['ZONA.ASENTAMIENTO']
+
+            if sepomex_row['ZONA.ASENTAMIENTO'] == 'Rural':
+                asentamiento = 'rural'
+            elif sepomex_row['ZONA.ASENTAMIENTO'] == 'Urbano':
+                asentamiento = 'urban'
 
             if strcpas == valor_a_buscar:
                 municipiobusqueda = sepomex_row['MUNICIPIO']
                 break
 
     # Buscar municipiobusqueda en df_coneval['MUNICIPIO']
-    poblacionmun = 'No encontrado'
-    rangopobreza = 'No encontrado'
+    poblacionmun = 'not-found'
+    rangopobreza = 'not-found'
     for index, coneval_row in df_coneval.iterrows():
 
         if str(coneval_row['MUNICIPIO']) == municipiobusqueda:
@@ -51,13 +54,8 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
             break
 
 
-
-
-
-
-
     if row['FECHA_NAC'] == 'S/R':
-        edad = 'S/R'
+        edad = 'not-ans'
     else:
         # Supongamos que row['FECHA_NAC'] es una cadena en el formato '02/05/1968'
         fecha_nacimiento_str = row['FECHA_NAC']
@@ -72,26 +70,66 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
 
     # Calcular el bmi
     if row['TALLA'] == 'S/R' or row['PESO'] == 'S/R':
-        bmi = 'No calc'
+        bmi = 'not-computable'
     else:
         talla = row['TALLA']
         tallai = float(talla)
         peso = float(row['PESO'])
-        bmi = peso / (tallai ** 2)
+        bmi = round(peso / (tallai ** 2), 4)
 
+    valor_fuma = row['CANTIDAD_CIGARRILLOS']
 
+    if valor_fuma == 'S/R':
+        frecfum = 'not-ans'
+    else:
+        if isinstance(valor_fuma, str):
+            match = re.match(r'(\d+)\s*A\s*(\d+)', valor_fuma)
 
+            if match:
+                # Obtener los dos números del rango
+                num1, num2 = map(int, match.groups())
+
+                # Calcular el promedio y redondear hacia arriba
+                resultado = math.ceil((num1 + num2) / 2)
+
+            else:
+                # Si solo hay un número, convertirlo a entero
+                resultado = int(valor_fuma)
+
+        else:
+            # Manejar el caso en que valor_fuma no es una cadena
+            resultado = None  # O cualquier otro manejo que desees hacer
 
     if row['FUMA'] == '1':
-        fumador = "Yes"
-        frecfum =  row['CANTIDAD_CIGARRILLOS'] +" "+ row['FRECUENCIA_FUMA']
+        fumador = "yes"
+        frecfum = ""
+        if row['FRECUENCIA_FUMA'] == 'DIARIAMENTE':
+            frecfum = resultado * 7
+
+        elif row['FRECUENCIA_FUMA'] == 'ANUALMENTE':
+            frecfum = resultado * 1
+        elif row['FRECUENCIA_FUMA'] == 'SEMANALMENTE':
+            resultado = int(resultado)
+            frecfum = math.ceil(resultado)
+        elif row['FRECUENCIA_FUMA'] == 'S/R':
+            resultado = int(resultado)
+            frecfum = math.ceil(resultado)
+        elif row['FRECUENCIA_FUMA'] == 'MENSUALMENTE':
+            # Asegurarse de que resultado sea un entero antes de operar con él
+            resultado = int(resultado)
+            frecfum = math.ceil(resultado / 4)
+
+    elif row['FUMA'] == '2':
+        fumador = "no"
+        frecfum = 'not-computable'
+
     else:
-        fumador = "No"
-        cantidadfum ="N/A"
-        frecfum = "N/A"
-        
+        fumador = "not-ans"
+        cantidadfum = "not-ans"
+        frecfum = "not-ans"
+
     if row['MENARCA'] == 'S/R':
-        edadM = 'S/R'
+        edadM = 'not-ans'
     else:
         menarca_str = row['MENARCA']
 
@@ -102,8 +140,8 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
         edadM = int(edad_match.group(1)) if edad_match else 0  # Puedes asignar un valor predeterminado si no se encuentra la edad
 
     if row['INICIO_VIDA_SEXUAL'] == 'S/R':
-        edadS = 'S/R'
-        edadSince = 'S/R'
+        edadS = 'not-ans'
+        edadSince = 'not-ans'
     else:
         sexual_str = row['INICIO_VIDA_SEXUAL']
         #print(sexual_str)
@@ -124,20 +162,23 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
     elif row['NUM_PAREJAS_SEXUALES'] == '4':
         parejas = 4
     else:
-        parejas = 'na'
+        parejas = 'none'
 
 
     if row['FECHA_HORA_TOMA'] == 'S/R':
-        fechaup = 'na'
-        fechaap = 'na'
-        fechaac = 'na'
-        fechauc = 'na'
+        fechaup = 'not-ans'
+        fechaap = 'not-ans'
+        fechaac = 'not-ans'
+        fechauc = 'not-ans'
     else:
         fecha_toma_str = row['FECHA_HORA_TOMA'].split()[0]  # Obtener la parte de la fecha, ignorando la hora
         fecha_toma = datetime.strptime(fecha_toma_str, '%d/%m/%Y')
-        if row['FECHA_ULTIMO_PAPANICOLAOU'] == 'S/R' or row['FECHA_ULTIMO_PAPANICOLAOU'] == 'NUNCA':
-            fechaup = 'na'
-            fechaap = 'na'
+        if row['FECHA_ULTIMO_PAPANICOLAOU'] == 'S/R':
+            fechaup = 'not-ans'
+            fechaap = 'not-ans'
+        elif row['FECHA_ULTIMO_PAPANICOLAOU'] == 'NUNCA':
+            fechaup = 'never'
+            fechaap = 'never'
         elif len(row['FECHA_ULTIMO_PAPANICOLAOU']) == 4:
             intpap = int(row['FECHA_ULTIMO_PAPANICOLAOU'])
             fechaap = fecha_toma.year - intpap
@@ -160,9 +201,13 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
                 fechaap = fechaupm
 
 
-        if row['FECHA_ULTIMA_COLPOSCOPIA'] == 'S/R' or row['FECHA_ULTIMA_COLPOSCOPIA'] == 'NUNCA':
-            fechauc = 'na'
-            fechaac = 'na'
+        if row['FECHA_ULTIMA_COLPOSCOPIA'] == 'S/R':
+            fechauc = 'not-ans'
+            fechaac = 'not-ans'
+        elif row['FECHA_ULTIMA_COLPOSCOPIA'] == 'NUNCA':
+            fechauc = 'never'
+            fechaac = 'never'
+
         elif len(row['FECHA_ULTIMA_COLPOSCOPIA']) == 4:
             intpap = int(row['FECHA_ULTIMA_COLPOSCOPIA'])
 
@@ -185,165 +230,112 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
                 fechaac = fecha_toma.year - nueva_fecha.year
                 fechauc = fecha_toma.year - fechaac
 
-    if row['METODO_PLANIFICACION_FAMILIAR'] == 'S/R':
-        #print("S/R")
-        mpf = 'na'
-    elif len(row['METODO_PLANIFICACION_FAMILIAR']) >= 2:
-        # Dividir la cadena usando el carácter "|"
-        partes = row['METODO_PLANIFICACION_FAMILIAR'].split(" | ")
-        variable1 = partes[0]
-        if variable1 == '1':
-            mpf1 = "coitus interruptus"
-        elif variable1 == '2':
-            mpf1 = "condom"
-        elif variable1 == '3':
-            mpf1 = "hormonal"
-        elif variable1 == '4':
-            mpf1 = "DIU"
-        elif variable1 == '5':
-            mpf1 = "other"
-        variable2 = partes[1]
-        if variable2 == '1':
-            mpf2 = "coitus interruptus"
-        elif variable2 == '2':
-            mpf2 = "condom"
-        elif variable2 == '3':
-            mpf2 = "hormonal"
-        elif variable2 == '4':
-            mpf2 = "DIU"
-        elif variable2 == '5':
-            mpf2 = "other"
+    # Diccionario de traduccionesmpf
+    traduccionesmpf = {
+        'SALPINGOCLASIA': 'tubal occlusion',
+        'CONDON': 'condom',
+        'ANTICONCEPTIVOS ORALES': 'oral',
+        'VASECTOMIA ESPOSO': 'vasectomy(partner)',
+        'COITO INTERRUMPIDO': 'coitus interruptus',
+        'PARCHE ANTICONCEPTIVO': 'patch',
+        'INYECCION ANTICONCEPTIVA (CYCLOFEMINA)': 'injection',
+        'DIU (MIRENA)': 'diu mirena',
+        'DIU (COBRE)': 'diu copper',
+        'DIU': 'diu',
+        'CIRUGIA': 'surgery',
+        'ANTICONCEPTIVOS ORALES (PASTILLA DIA DESPUES)': 'oral',
+        # Agrega más traduccionesmpf según sea necesario
+    }
 
-        mpf = mpf1 + " | " + mpf2
-    else:
-        if row['METODO_PLANIFICACION_FAMILIAR'] == '1':
-            mpf = "coitus interruptus"
-        elif row['METODO_PLANIFICACION_FAMILIAR'] == '2':
-            mpf = "condom"
-        elif row['METODO_PLANIFICACION_FAMILIAR'] == '3':
-            mpf = "hormonal"
-        elif row['METODO_PLANIFICACION_FAMILIAR'] == '4':
-            mpf = "DIU"
-        elif row['METODO_PLANIFICACION_FAMILIAR'] == '5':
-            mpf = "other"
+    # Inicializa la variable mpf
+    mpf = ""
+
+    # Obtén las observaciones del método de planificación familiar
+    observaciones = row['OBSERVACIONES_METODO_PLANIFICACION_FAMILIAR']
+
+    # Convierte las observaciones a inglés y minúsculas usando el diccionario de traduccionesmpf
+    observaciones_ingles = [traduccionesmpf.get(obs, obs) for obs in observaciones.split(" | ")]
+
+    # Combina las observaciones traducidas en una cadena separada por " | "
+    observaciones_ingles_str = " | ".join(observaciones_ingles)
+
+    if row['OBSERVACIONES_METODO_PLANIFICACION_FAMILIAR'] == 'S/R':
+        if row['METODO_PLANIFICACION_FAMILIAR'] == 'S/R':
+            # print("S/R")
+            mpf = 'not-ans'
+        elif len(row['METODO_PLANIFICACION_FAMILIAR']) >= 2:
+            # Dividir la cadena usando el carácter "|"
+            partes = row['METODO_PLANIFICACION_FAMILIAR'].split(" | ")
+            variable1 = partes[0]
+            if variable1 == '1':
+                mpf1 = "coitus interruptus"
+            elif variable1 == '2':
+                mpf1 = "condom"
+            elif variable1 == '3':
+                mpf1 = "hormonal"
+            elif variable1 == '4':
+                mpf1 = "DIU"
+            elif variable1 == '5':
+                mpf1 = "other"
+            variable2 = partes[1]
+            if variable2 == '1':
+                mpf2 = "coitus interruptus"
+            elif variable2 == '2':
+                mpf2 = "condom"
+            elif variable2 == '3':
+                mpf2 = "hormonal"
+            elif variable2 == '4':
+                mpf2 = "DIU"
+            elif variable2 == '5':
+                mpf2 = "other"
+
+            mpf = mpf1 + " | " + mpf2
         else:
-            mpf= "error"
-
-    # if row['METODO_PLANIFICACION_FAMILIAR'] == 'S/R':
-    #     print()
-    # row['ABORTO']
-
-
+            if row['METODO_PLANIFICACION_FAMILIAR'] == '1':
+                mpf = "coitus interruptus"
+            elif row['METODO_PLANIFICACION_FAMILIAR'] == '2':
+                mpf = "condom"
+            elif row['METODO_PLANIFICACION_FAMILIAR'] == '3':
+                mpf = "hormonal"
+            elif row['METODO_PLANIFICACION_FAMILIAR'] == '4':
+                mpf = "DIU"
+            elif row['METODO_PLANIFICACION_FAMILIAR'] == '5':
+                mpf = "other"
+            else:
+                mpf = "error"
+    else:
+        mpf = observaciones_ingles_str
 
     if row['ABORTO'] == 'S/R':
-        #print("S/R")
-        at = 'na'
-        abn = 'na'
+        # print("S/R")
+        at = 'not-ans'
+        abn = 'not-ans'
     else:
         # Dividir la cadena usando el carácter "|"
         partes = row['ABORTO'].split(" | ")
 
-        if len(partes) >= 3:
-            variable1 = partes[0]
-            if variable1 == '1':
-                at1 = "Legrado"
-            elif variable1 == '2':
-                at1 = "Inducido"
-            elif variable1 == '3':
-                at1 = "Espontaneo"
-            elif variable1 == '4':
-                at1 = "Ninguno"
-            elif variable1 == '5 (EMBARAZO ECTOPICO)':
-                at1 = "Embarazo ectopico"
+        translation_dict = {
+            '1': 'curettage',
+            '2': 'induced',
+            '3': 'spontaneous',
+            '4': 'none',
+            '5 (EMBARAZO ECTOPICO)': 'ectopic'
+        }
 
-            variable2 = partes[1]
-            if variable2 == '1':
-                at2 = "Legrado"
-            elif variable2 == '2':
-                at2 = "Inducido"
-            elif variable2 == '3':
-                at2 = "Espontaneo"
-            elif variable2 == '4':
-                at2 = "Ninguno"
-            elif variable2 == '5 (EMBARAZO ECTOPICO)':
-                at2 = "Embarazo ectopico"
 
-            variable3 = partes[2]
-            if variable3 == '1':
-                at3 = "Legrado"
-            elif variable3 == '2':
-                at3 = "Inducido"
-            elif variable3 == '3':
-                at3 = "Espontaneo"
-            elif variable3 == '4':
-                at3 = "Ninguno"
-            elif variable3 == '5 (EMBARAZO ECTOPICO)':
-                at3 = "Embarazo ectopico"
-
-            at = at1 + " | " + at2 + " | " + at3
-            abn = len(partes)
-        elif len(partes) == 2:
-            # Manejar el caso en el que solo hay dos partes
-            variable1 = partes[0]
-            if variable1 == '1':
-                at1 = "Legrado"
-            elif variable1 == '2':
-                at1 = "Inducido"
-            elif variable1 == '3':
-                at1 = "Espontaneo"
-            elif variable1 == '4':
-                at1 = "Ninguno"
-            elif variable1 == '5 (EMBARAZO ECTOPICO)':
-                at1 = "Embarazo ectopico"
-
-            variable2 = partes[1]
-            if variable2 == '1':
-                at2 = "Legrado"
-            elif variable2 == '2':
-                at2 = "Inducido"
-            elif variable2 == '3':
-                at2 = "Espontaneo"
-            elif variable2 == '4':
-                at2 = "Ninguno"
-            elif variable2 == '5 (EMBARAZO ECTOPICO)':
-                at2 = "Embarazo ectopico"
-
-            at = at1 + " | " + at2
-            abn = len(partes)
-        else:
-            # Manejar el caso en el que hay menos de dos partes
-            variable1 = partes[0] if len(partes) >= 1 else 'Ninguno'
-            if variable1 == '1':
-                at1 = "curettage"
-                abn = len(partes)
-            elif variable1 == '2':
-                at1 = "induced"
-                abn = len(partes)
-            elif variable1 == '3':
-                at1 = "spontaneous"
-                abn = len(partes)
-            elif variable1 == '4':
-                at1 = "none"
-                abn = 0
-            elif variable1 == '5 (EMBARAZO ECTOPICO)':
-                at1 = "ectopic pregnancy"
-                abn = len(partes)
-
-            at = at1
-
+        abn = len(partes)
+        at_values = [translation_dict.get(part, 'Ninguno') for part in partes]
+        at = " | ".join(at_values)
 
     if row['PARTO'] == 'S/R':
-        pn = 'na'
+        pn = 'not-ans'
     else:
         pn = int(row['PARTO'])
 
     if row['CESÁREA'] == 'S/R':
-        cn = 'na'
+        cn = 'not-ans'
     else:
         cn = int(row['CESÁREA'])
-
-
-
 
     id_gineq = row['ID_GINEQ']
 
@@ -361,7 +353,7 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
         elif vptx == 'negativo':
             valorpreventix = 'negative'
         else:
-            valorpreventix = 'na'
+            valorpreventix = 'not-biopsied'
 
 
         vp16 = fila_ginequito['p16'].values[0]
@@ -370,7 +362,7 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
         elif vp16 == 'negativo':
             valorp16 = 'negative'
         elif vp16 == 'nr':
-            valorp16 = 'not biopsed'
+            valorp16 = 'not biopsied'
         else:
             valorp16 = 'na'
 
@@ -380,7 +372,7 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
         elif vphv == 'negativo':
             vph = 'negative'
         elif vp16 == 's/r':
-            vph = 'na'
+            vph = 'not biopsied'
         else:
             vph = 'na'
 
@@ -393,7 +385,7 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
         elif genvph == '16':
             hpvgen = 'hpv-16'
         else:
-            hpvgen ='na'
+            hpvgen ='none'
 
         valorcolpos = ""
         colpperf = fila_ginequito['COLP.PERF'].values[0]
@@ -402,7 +394,7 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
         elif colpperf == 'no adecuada':
             valorcolpos = 'inadequate'
         elif colpperf == 'na':
-            valorcolpos = 'na'
+            valorcolpos = 'not-biopsied'
         else:
             valorcolpos = 'na'
 
@@ -415,9 +407,9 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
         elif colpcv == 'eutrofico':
             valorcolpcv = 'eutrophy'
         elif colpcv == 'no aplica':
-            valorcolpcv = 'na'
+            valorcolpcv = 'none'
         else:
-            valorcolpcv = 'na'
+            valorcolpcv = 'none'
 
         valorcopltz = ""
         colptz = fila_ginequito['COLP.TZ'].values[0]
@@ -430,7 +422,7 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
         elif colptz == 'normal':
             valorcopltz = 'normal'
         else:
-            valorcopltz = 'na'
+            valorcopltz = 'none'
 
 
         valorcoplawasurf = ""
@@ -450,20 +442,7 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
         else:
             valorcoplawasurf = 'na'
 
-
         valorcoplawa = ""
-        # colpawa = fila_ginequito['COLP.AWA'].values[0]
-        # if colpawa == 'lisa':
-        #     valorcoplawa = 'absent'
-        # elif colpawa == 'macropapilar':
-        #     valorcoplawa = 'fine'
-        # elif colpawa == 'mosaico fino':
-        #     valorcoplawa = 'coarse'
-        # elif colpawa == 'mosaico grueso':
-        #     valorcoplawa = 'rawa'
-        #
-        # else:
-        #     valorcoplawa = 'na'
 
         valorcoplawabor = ""
         colpawabor = fila_ginequito['COLP.AWA.BOR'].values[0]
@@ -476,16 +455,16 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
         elif colpawabor == 'con relieve':
             valorcoplawabor = 'ridge'
         else:
-            valorcoplawabor = 'na'
+            valorcoplawabor = 'none'
 
         valorbiosed = ""
         biopsed = fila_ginequito['BIOPSIED'].values[0]
         if biopsed == 'si':
-            valorbiosed = 'no'
+            valorbiosed = 'biopsied'
         elif biopsed == 'no':
-            valorbiosed = 'yes'
+            valorbiosed = 'not biopsied'
         else:
-            valorbiosed = 'na'
+            valorbiosed = 'not-biopsied'
 
         valorcolpperf = ""
         colpperf = fila_ginequito['COLP.PERF'].values[0]
@@ -527,15 +506,14 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
                 elif opcion == 'cambio de la flora vaginal sugestivo de vaginosis bacteriana':
                     valoreslbcdx.append('bacterial vaginosis')
                 else:
-                    valoreslbcdx.append('na')
+                    valoreslbcdx.append('none')
 
         # Comprobar si el arreglo está vacío y asignar 'na' en ese caso
         if not valoreslbcdx:
-            valoreslbcdx = 'na'
+            valoreslbcdx = 'not-biopsied'
         else:
             # Concatenar los valores en una cadena separada por " | "
             valoreslbcdx = " | ".join(valoreslbcdx)
-
 
 
         valorescolpofind = []
@@ -569,13 +547,13 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
                 elif opcion == 'polipo cervical':
                     valorescolpofind.append('polyp')
                 elif opcion == 'sin alteraciones':
-                    valorescolpofind.append('none')
+                    valorescolpofind.append('neg-for-sil-malign')
                 else:
-                    valorescolpofind.append('na')
+                    valorescolpofind.append('none')
 
         # Comprobar si el arreglo está vacío y asignar 'na' en ese caso
         if not valorescolpofind:
-            valorescolpofind = 'na'
+            valorescolpofind = 'not-biopsied'
         else:
             # Concatenar los valores en una cadena separada por " | "
             valorescolpofind = " | ".join(valorescolpofind)
@@ -631,11 +609,12 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
                 elif opcion == 'vaginitis':
                     valorcopothers.append('vaginitis')
                 else:
-                    valorcopothers.append('na')
+                    valorcopothers.append('none')
+                    print(opcion)
 
         # Comprobar si el arreglo está vacío y asignar 'na' en ese caso
         if not valorcopothers:
-            valorcopothers = 'na'
+            valorcopothers = 'not-biopsied'
         else:
             # Concatenar los valores en una cadena separada por " | "
             valorcopothers = " | ".join(valorcopothers)
@@ -644,8 +623,7 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
 
         # Verifica si alguno de los dos valores es 'na' para asignar 'na' a valorcolpdx en ese caso
         if 'na' in valorcopothers or 'na' in valorescolpofind:
-            valorcolpdx = 'na'
-
+            valorcolpdx = 'none'
 
 
         valorhistdx = []
@@ -673,7 +651,7 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
                     valorhistdx.append('severe vaginal atrophy')
                 elif opcion == 'alteraciones inflamatorias leves':
                     valorhistdx.append('mild inflammatory changes')
-                elif opcion == 'cambios citopaticos asociados a infeccion por el virus del papiloma humano':
+                elif opcion == 'cambios citopaticos asociados a infeccion por el virus del papiloma humano' or opcion == 'cambios citopaticos asociados al virus del papiloma humano':
                     valorhistdx.append('cytopathic changes associated with human papillomavirus infection')
                 elif opcion == 'cervicitis cronica con hiperplasia microglandular':
                     valorhistdx.append('chronic cervicitis with microglandular hyperplasia')
@@ -681,7 +659,7 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
                     valorhistdx.append('chronic cervicitis with squamous metaplasia')
                 elif opcion == 'negativo para displasia o malignidad':
                     valorhistdx.append('negative for dysplasia or malignancy')
-                elif opcion == 'negativo para lesion o malignidad':
+                elif opcion == 'negativo para lesion o malignidad' or opcion == 'negativo para lesion/malignidad':
                     valorhistdx.append('negative for lesion or malignancy')
                 elif opcion == 'negativo para malignidad':
                     valorhistdx.append('negative for malignancy')
@@ -693,9 +671,9 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
                     valorhistdx.append('acute endocervicitis')
                 elif opcion == 'extension glandular':
                     valorhistdx.append('glandular extension')
-                elif opcion == 'lesion escamosa intraepitelial de bajo grado':
+                elif opcion == 'lesion escamosa intraepitelial de bajo grado' or opcion == 'lesion intraepitelial escamosa de bajo grado ' or opcion == ' lesion intraepitelial escamosa de bajo grado 'or opcion == 'lesion intraepitelial escamosa de bajo grado':
                     valorhistdx.append('low-grade squamous intraepithelial lesion')
-                elif opcion == 'lesion intraepitelial escamosa de alto grado':
+                elif opcion == 'lesion intraepitelial escamosa de alto grado' or opcion == 'lesion escamosa intraepitelial de alto grado':
                     valorhistdx.append('high-grade squamous intraepithelial lesion')
                 elif opcion == 'metaplasia escamosa inmadura':
                     valorhistdx.append('immature squamous metaplasia')
@@ -710,18 +688,14 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
                 elif opcion == 'proceso inflamatorio agudo':
                     valorhistdx.append('acute inflammatory process')
                 else:
-                    valorhistdx.append('na')
+                    valorhistdx.append('none')
 
         # Comprobar si el arreglo está vacío y asignar 'na' en ese caso
         if not valorhistdx:
-            valorhistdx = 'na'
+            valorhistdx = 'not-biopsied'
         else:
             # Concatenar los valores en una cadena separada por " | "
             valorhistdx = " | ".join(valorhistdx)
-
-        # print(valorhistdx)
-
-
 
         # Obtener los valores de las columnas
         tv = fila_ginequito['T.vaginalis'].values[0]
@@ -751,16 +725,9 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
 
         # Utilizar el arreglo resultante
         if len(LBCOFIND) == 0:
-            LBCOFIND_resultado = 'na'
+            LBCOFIND_resultado = 'none'
         else:
             LBCOFIND_resultado = " | ".join(LBCOFIND)
-
-
-
-
-
-
-
 
         valorcopschil = ""
         colpschil = fila_ginequito['COLP.SCHIL'].values[0]
@@ -769,9 +736,7 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
         elif colpschil == 'negativo':
             valorcopschil = 'negative'
         else:
-            valorcopschil = 'na'
-
-
+            valorcopschil = 'none'
 
 
         # Inicializamos el arreglo para almacenar los valores encontrados en ambos arreglos
@@ -790,7 +755,7 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
         if lbcres.intersection(valoreslbcPos):
             resultadolbcpos = "positive"
         else:
-            resultadolbcpos = "false"
+            resultadolbcpos = "negative"
 
 
         # Inicializamos el arreglo para almacenar los valores encontrados en ambos arreglos
@@ -807,42 +772,34 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
         if colpres.intersection(valorescolpPos):
             resultadocolps = "positive"
         else:
-            resultadocolps = "false"
-
-
-
-
+            resultadocolps = "negative"
 
         # Inicializamos el arreglo para almacenar los valores encontrados en ambos arreglos
         histres = []
-
         # Iteramos sobre LBCOFIND_resultado
         histres.extend(valorhistdx.split(" | "))
         # Convertimos lbcres a un conjunto para eliminar duplicados
         histres = set(histres)
         # Definimos los valores positivos a buscar
-        valoreshistposdx = ['lsil','hsil','nic-1','nic-2','nic-3','mild dysplasia','moderate dysplasia','severe dysplasia','carcinoma in situ','carcinoma','cervical cancer','microinvasive carcinoma','invasive carcinoma','adenocarcinoma','endocervical adenocarcinoma','endometrial adenocarcinoma','unespecified malignancy','mature squamous metaplasia','immature squamous metaplasia','CIN 1','high-grade squamous intraepithelial lesion','low-grade squamous intraepithelial lesion','mild dysplasia','mature squamous metaplasia','immature squamous metaplasia','vaginal low-grade intraepithelial neoplasia (VAIN 1)']
+        valoreshistposdx = ['lsil','hsil','nic-1','nic-2','nic-3','mild dysplasia','moderate dysplasia','severe dysplasia','carcinoma in situ','carcinoma','cervical cancer','microinvasive carcinoma','invasive carcinoma','adenocarcinoma','endocervical adenocarcinoma','endometrial adenocarcinoma','unespecified malignancy','mature squamous metaplasia','immature squamous metaplasia','CIN 1','high-grade squamous intraepithelial lesion','low-grade squamous intraepithelial lesion','mild dysplasia','mature squamous metaplasia','immature squamous metaplasia']
         # Comparamos los conjuntos
         if histres.intersection(valoreshistposdx):
             resultadohistpos = "positive"
         else:
-            resultadohistpos = "false"
+            resultadohistpos = "negative"
 
-
-
-
+        if row['ID_DEVELLAB'] == 'S/R':
+            iddev = row['ID_GINEQ']
+        else:
+            iddev = row['ID_DEVELLAB']
 
     else:
         print(f"No se encontró información para ID_GINEQ: {id_gineq}")
 
 
-
-
-
     # Crear un diccionario con la información completa
     paciente_completo = {
-            'ID': row['ID_DEVELLAB'],
-            'ID': row['ID_GINEQ'],
+            'ID': iddev,
             'AGE': edad,
             'BMI': bmi,
             'PREVENTIX': valorpreventix,
@@ -856,7 +813,7 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
             'HPV.PCR.GENOTYPE': hpvgen,
             'COLP.DX': valorcolpdx,
             'COLP.PERF': valorcolpperf,
-            'COLP.CVXCN': colpcv,
+            'COLP.CVXCN': valorcolpcv,
             'COLP.TZ': valorcopltz,
             'COLP.AWA.SURF': valorcoplawasurf,
             'COLP.AWA.BOR': valorcoplawabor,
@@ -883,53 +840,9 @@ def obtener_informacion_completa(row, df_sepomex, df_coneval, df_ginequito):
             'TOWN.POV.LEVEL': rangopobreza
     }
 
-
-    # paciente_completo = {
-    #     'ID': row['ID_DEVELLAB'],
-    #     'ID': row['ID_GINEQ'],
-    #     'AGE': edad,
-    #     'BMI': bmi,
-    #     'PREVENTIX': valorpreventix,
-    #     'LBC': resultadolbcpos,
-    #     'HPV.PCR': vph,
-    #     'COLP': resultadocolps,
-    #     'HISTOPATH': resultadohistpos,
-    #     'p16': valorp16,
-    #     'LBC.DX': valoreslbcdx,
-    #     'LBC.OFIND': LBCOFIND_resultado,
-    #     'HPV.PCR.GENOTYPE': hpvgen,
-    #     'COLP.DX': valorcolpdx,
-    #     'COLP.PERF': valorcolpperf,
-    #     'COLP.CVXCN': colpcv,
-    #     'COLP.TZ': valorcopltz,
-    #     'COLP.AWA.SURF': valorcoplawasurf,
-    #     'COLP.AWA.BOR': valorcoplawabor,
-    #     'COLP.SCHIL': valorcopschil,
-    #     'COLP.OFIND': valorescolpofind,
     #     'COLP.CELLATR': row['COLP.CELLATR'],
     #     'COLP.INFCELCHAN': row['COLP.INFCELCHAN'],
-    #     'BIOPSIED': valorbiosed,
-    #     'HISTOPATH.DX': valorhistdx,
-    #     'SMOKE': fumador,
-    #     'SMOKE.QTY.WEEK': frecfum,
-    #     'MENARCH': edadM,
-    #     'AGE.SEX.DEBUT': edadS,
-    #     'YEARS.SINCE.MENAR.TO.SEXDEBUT': edadSince,
-    #     'NO.SEX.PARTN': parejas,
-    #     'YEAR.OF.LAST.CITOL': fechaup,
-    #     'YEARS.SINCE.LAST.CITOL': fechaap,
-#         'YEAR.OF.LAST.COLP': fechauc,
-#         'YEARS.SINCE.LAST.COLP': fechaac,
-    #     'CONTRACEP.METH': mpf,
-    #     'ABORT.TYPE': at,
-    #     'ABORT.NUM': abn,
-    #     'VAG.DEL': pn,
-    #     'C.SECTION': cn,
-    #     'AREA.TYPE': asentamiento,
-    #     'TOWN.POV.LEVEL': rangopobreza
-    # }
-
-
+    #     'ABORT.TYPE': at
 
     return paciente_completo
 
